@@ -1,14 +1,22 @@
 const express = require("express");
+const dotenv = require("dotenv");
+
+dotenv.config();
+
 const chokidar = require("chokidar");
 const path = require("path");
 const fs = require("fs");
 const sharp = require("sharp");
 const { uploadFile } = require("./s3");
 const crypto = require("crypto");
+const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
 const bucketName = process.env.AWS_BUCKET_NAME;
+const region = process.env.AWS_BUCKET_REGION;
+const accessKeyId = process.env.AWS_ACCESS_KEY;
+const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
 
 const app = express();
-const port = 8050; // Replace with your desired port number
+const port = process.env.PORT || 8050; // Replace with your desired port number
 
 const directoryToWatch = "./images"; // Replace with your folder path
 
@@ -16,6 +24,14 @@ const accountSid = process.env.ACCOUNTSID;
 const authToken = process.env.AUTHTOKEN;
 const sender = process.env.SENDER;
 const client = require("twilio")(accountSid, authToken);
+
+const s3Client = new S3Client({
+  region,
+  credentials: {
+    accessKeyId,
+    secretAccessKey,
+  },
+});
 
 let serverStarted = false;
 
@@ -31,9 +47,6 @@ function isNewFile(filePath) {
   const fileCreationTime = fileStats.birthtime; // Get the file creation time
   return fileCreationTime > serverStartTime;
 }
-
-const generateFileName = (bytes = 32) =>
-  crypto.randomBytes(bytes).toString("hex");
 
 // Get the server start time
 const serverStartTime = new Date();
@@ -61,10 +74,15 @@ watcher.on("add", async (filePath) => {
       .resize({ width: 1080, fit: "contain" })
       .toBuffer();
 
-    const imageName = generateFileName();
-    await uploadFile(fileBuffer, imageName, "image/png"); // You can set the MIME type accordingly
+    const imageURL = await uploadFile(
+      s3Client,
+      PutObjectCommand,
+      bucketName,
+      fileBuffer,
+      "image/png"
+    ); // You can set the MIME type accordingly
 
-    const imageUrl = `https://${bucketName}.s3.amazonaws.com/${imageName}`;
+    const imageUrl = `https://${imageURL.Bucket}.s3.amazonaws.com/${imageURL.Key}`;
     console.log(`Uploaded image URL: ${imageUrl}`);
 
     client.messages
