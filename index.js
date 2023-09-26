@@ -23,6 +23,8 @@ const directoryToWatch = "./images"; // Replace with your folder path
 const accountSid = process.env.ACCOUNTSID;
 const authToken = process.env.AUTHTOKEN;
 const sender = process.env.SENDER;
+const receivers = process.env.RECEIVERS;
+const myListArray = receivers.split(","); // Split the string into an array
 const client = require("twilio")(accountSid, authToken);
 
 const s3Client = new S3Client({
@@ -85,14 +87,16 @@ watcher.on("add", async (filePath) => {
     const imageUrl = `https://${imageURL.Bucket}.s3.amazonaws.com/${imageURL.Key}`;
     console.log(`Uploaded image URL: ${imageUrl}`);
 
-    client.messages
-      .create({
-        to: "2139083888",
-        from: sender, // replace with your Twilio phone number
-        mediaUrl: imageUrl,
-      })
-      .then((message) => console.log(`Message sent to ${message.to}`))
-      .catch((err) => console.error(err));
+    for (i = 0; i < myListArray.length; i++) {
+      client.messages
+        .create({
+          to: myListArray[i],
+          from: sender, // replace with your Twilio phone number
+          mediaUrl: imageUrl,
+        })
+        .then((message) => console.log(`Message sent to ${message.to}`))
+        .catch((err) => console.error(err));
+    }
 
     // Do something with the new .png file here
   }
